@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# Husky shell
+. "$(dirname "$0")/_/husky.sh"
+
+# Check the commit style
+npx commitlint --edit $1

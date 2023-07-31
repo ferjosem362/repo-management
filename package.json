@@ -1,0 +1,35 @@
+{
+  "name": "ad-tech-sky-analytics-repo-template",
+  "version": "1.0.0",
+  "description": "Nasty repo to check conventional commits and other stuff",
+  "scripts": {
+    "prepare": "husky install && node ./scripts/prepare-repo.js",
+    "pre-commit": "lint-staged --relative",
+    "release": "standard-version",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sky-uk/ad-tech-sky-analytics-repo-template.git"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^17.0.3",
+    "@commitlint/config-conventional": "^17.0.3",
+    "@sky-uk/eslint-config-sky": "^34.0.0",
+    "eslint": "^8.2.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-import": "^2.25.2",
+    "eslint-plugin-jest": "^26.5.3",
+    "husky": "^8.0.1",
+    "lint-staged": "^10.5.4",
+    "sass-lint": "^1.13.1",
+    "standard-version": "^9.5.0"
+  },
+  "author": "Sky Ad Tech Team",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sky-uk/ad-tech-sky-analytics-repo-template/issues"
+  },
+  "homepage": "https://github.com/sky-uk/ad-tech-sky-analytics-repo-template#readme"
+}

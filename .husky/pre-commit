@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Check the branch and do a lint-staged phase
+node .husky/scripts/check_branch.js
+npx lint-staged --relative
