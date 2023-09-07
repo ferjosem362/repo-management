@@ -1,12 +1,14 @@
 # This script source information from GitHub audit logs via GITHUB REST API Calls and obtain whether a particular user is authorized to make commits / PRs in a repo
+# Then, if this happens, send an event to SPLUNK and a WEBHOOK alert to an Slack Channel
 import os
 import requests
 import json
 import time
 
-# Get GitHub Token and Org from Environment Variables //ideally should be recovered (fetched) from VAULT (CyberArk API), but I am not familiar yet with the REST API connection points
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_ORG = os.getenv("GITHUB_ORG")
+# Fetch GitHub Token and other necessary tokens from the environment
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+SPLUNK_HEC_TOKEN = os.environ.get("SPLUNK_HEC_TOKEN") # Splunk HEC (HTTP Event Collector) Token
+SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL") # Slack Incoming Webhook URL
 
 # GitHub API Header
 HEADERS = {
@@ -14,53 +16,64 @@ HEADERS = {
     'Accept': 'application/vnd.github.v3+json'
 }
 
-# Function to get all repositories with pagination
-def get_all_repositories():
-    all_repos = []
-    page = 1
-    while True:
-        url = f"https://api.github.com/orgs/{GITHUB_ORG}/repos?page={page}&per_page=100"
-        response = requests.get(url, headers=HEADERS)
-        if response.status_code != 200:
-            print(f"Failed to get repositories: {response.content}")
-            break
-        repos = json.loads(response.text)
-        if not repos:
-            break
-        all_repos.extend(repos)
-        page += 1
-        time.sleep(1)  # To avoid hitting rate limits
-    return all_repos
+GITHUB_ORG = "SKY-UK"  
 
-# Function to check if a user is authorized to commit to a repo
-def is_user_authorized(repo_name, user_login):
-    url = f"https://api.github.com/repos/{GITHUB_ORG}/{repo_name}/collaborators/{user_login}/permission"
-    response = requests.get(url, headers=HEADERS)
+# Splunk Configuration
+SPLUNK_ENDPOINT = "https://splunk_instance_url:8088" # we need to change this to our Splunk instance URL
+
+# Function to send event to Splunk
+def send_to_splunk(event):
+    headers = {
+        "Authorization": f"Splunk {SPLUNK_HEC_TOKEN}"
+    }
+    data = {
+        "event": event
+    }
+    response = requests.post(f"{SPLUNK_ENDPOINT}/services/collector/event", headers=headers, json=data)
     if response.status_code != 200:
-        print(f"Failed to get permissions for {user_login} on {repo_name}: {response.content}")
-        return False
-    permission_data = json.loads(response.text)
-    return permission_data['permission'] in ['admin', 'write']
+        print(f"Failed to send event to Splunk. Status code: {response.status_code}, Response: {response.text}")
+
+# Function to send a message to Slack
+def send_to_slack(message):
+    data = {
+        "text": message
+    }
+    response = requests.post(SLACK_WEBHOOK_URL, json=data)
+    if response.status_code != 200:
+        print(f"Failed to send message to Slack. Status code: {response.status_code}, Response: {response.text}")
+
+# Main logic for checking unauthorized commits and sending alarms
+# Function to get all repositories
+def get_all_repositories():
+    url = f"https://api.github.com/orgs/{GITHUB_ORG}/repos?type=all"
+    response = requests.get(url, headers=HEADERS)
+    return json.loads(response.text)
 
 # Function to check unauthorized commit attempts in Audit Logs
 def check_unauthorized_commits(repo_name):
-    url = f"https://api.github.com/orgs/{GITHUB_ORG}/audit-log?phrase=repo.name:{repo_name}+action:git.push+is:not"
+    url = f"https://api.github.com/orgs/{GITHUB_ORG}/audit-log?phrase=repo.name:{repo_name}+action:git.push+is:not" 
     response = requests.get(url, headers=HEADERS)
-    if response.status_code != 200:
-        print(f"Failed to get audit logs for {repo_name}: {response.content}")
-        return
     logs = json.loads(response.text)
     for log in logs:
-        user_login = log['user_login']
-        if not is_user_authorized(repo_name, user_login):
-            print(f"Unauthorized push attempt by {user_login} on {repo_name}")
-
+        if log['user_login'] not in ['authorized_user1', 'authorized_user2']:
+            print(f"Unauthorized push attempt by {log['user_login']} on {repo_name}")
 # Main logic
 if __name__ == '__main__':
-    all_repos = get_all_repositories()
-    print(f"Total Repositories: {len(all_repos)}")
-
-    for repo in all_repos:
+    repos = get_all_repositories()
+    for repo in repos:
         repo_name = repo['name']
         check_unauthorized_commits(repo_name)
-        time.sleep(1)  # To avoid hitting rate limits
+
+def trigger_alarm(user_login, repo_name):
+    # Send event to Splunk
+    event = {
+        "user": user_login,
+        "repository": repo_name,
+        "action": "Unauthorized push"
+    }
+    send_to_splunk(event)
+    
+    # Send alert to Slack
+    slack_message = f"ALARM: User {user_login} tried an unauthorized push to {repo_name}!"
+    send_to_slack(slack_message)
+
