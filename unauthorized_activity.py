@@ -45,18 +45,38 @@ def send_to_slack(message):
 # Main logic for checking unauthorized commits and sending alarms
 # Function to get all repositories
 def get_all_repositories():
-    url = f"https://api.github.com/orgs/{GITHUB_ORG}/repos?type=all"
-    response = requests.get(url, headers=HEADERS)
-    return json.loads(response.text)
-
+    repos = []
+    page = 1
+    while True:
+        url = f"https://api.github.com/orgs/{GITHUB_ORG}/repos?type=all&per_page=100&page={page}"
+        response = requests.get(url, headers=HEADERS)
+        response_data = json.loads(response.text)
+        if not response_data or response.status_code != 200:
+            if response.headers.get('X-RateLimit-Remaining') == '0':
+                reset_time = int(response.headers['X-RateLimit-Reset'])
+                sleep_duration = reset_time - int(time.time()) + 5
+                print(f"Rate limit exceeded. Waiting for {sleep_duration} seconds")
+                time.sleep(sleep_duration)
+                continue
+            break
+        repos.extend(response_data)
+        page += 1
+    return repos
 # Function to check unauthorized commit attempts in Audit Logs
-def check_unauthorized_commits(repo_name):
+def check_unauthorized_commits(repo):
+    repo_name = repo['name']
     url = f"https://api.github.com/orgs/{GITHUB_ORG}/audit-log?phrase=repo.name:{repo_name}+action:git.push+is:not" 
     response = requests.get(url, headers=HEADERS)
     logs = json.loads(response.text)
+
+# Fetch repo collaborators (members with push access, includes teams, admins)
+    collaborators = [collab.login for collab in repo.get_collaborators()]
     for log in logs:
-        if log['user_login'] not in ['authorized_user1', 'authorized_user2']:
-            print(f"Unauthorized push attempt by {log['user_login']} on {repo_name}")
+        user_login = log['user_login']
+        if user_login not in collaborators:
+            print(f"Unauthorized push attempt by {user_login} on {repo_name}")
+            # Logic to trigger an alarm. Depending on your infrastructure, this can be an API call, an email, etc.
+            trigger_alarm(user_login, repo_name)
 # Main logic
 if __name__ == '__main__':
     repos = get_all_repositories()
