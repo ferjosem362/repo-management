@@ -1,0 +1,28 @@
+// this yaml scripts makes the setup (every day, at midnight) from Github Actions to CyberArk Conjure to retrieve secrets
+// is an snippet, as long as needs some adapt to SKY-UK -but links to unauthorized_access_check.py python script, so is workable
+name: Unauthorized Access Check
+
+on:
+  schedule:
+    - cron:  '0 0 * * *' 
+
+jobs:
+  scan-job:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Fetch GitHub Token from CyberArk
+      uses: cyberark/conjur-fetch-secrets-action@v2
+      with:
+        secrets-list: '["GITHUB_TOKEN"]'
+      env:
+        CONJUR_ACCOUNT: your-conjur-account
+        CONJUR_APPLIANCE_URL: your-conjur-appliance-url
+        CONJUR_AUTHN_LOGIN: host/your-conjur-authn-login
+        CONJUR_AUTHN_API_KEY: ${{ secrets.CONJUR_AUTHN_API_KEY }}
+
+    - name: Run the Unauthorized Access Check Script
+      run: python unauthorized_access_check.py
