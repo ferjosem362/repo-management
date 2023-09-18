@@ -72,7 +72,7 @@ def main():
             print("Authentication error. Please ensure you're authenticated to your GitHub Enterprise Cloud instance.")
         else:
             print(f"Error occurred: {e}")
-# ... [Previous code]
+
 
 def get_all_pages(url):
     """Fetch all pages of data for a given API endpoint."""
