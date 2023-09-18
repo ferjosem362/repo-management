@@ -72,6 +72,35 @@ def main():
             print("Authentication error. Please ensure you're authenticated to your GitHub Enterprise Cloud instance.")
         else:
             print(f"Error occurred: {e}")
+# ... [Previous code]
+
+def get_all_pages(url):
+    """Fetch all pages of data for a given API endpoint."""
+    all_data = []
+    while url:
+        response = requests.get(url, headers=HEADERS)
+        all_data.extend(response.json())
+        
+        # Check for pagination in the 'Link' header
+        link_header = response.headers.get('Link', '')
+        if '<' in link_header and '>' in link_header:
+            links = {rel[6:-1]: url[url.index('<')+1:url.index('>')].strip('<').strip('>') for url, rel in (link.split(';') for link in link_header.split(','))}
+            url = links.get('next')
+        else:
+            url = None
+
+        # Check rate limits and potentially wait or exit
+        remaining_calls = int(response.headers.get('X-RateLimit-Remaining', 0))
+        if remaining_calls == 0:
+            reset_time = datetime.fromtimestamp(int(response.headers.get('X-RateLimit-Reset')))
+            wait_time = (reset_time - datetime.now()).seconds + 1
+            print(f"Rate limit reached. Waiting for {wait_time} seconds.")
+            time.sleep(wait_time)
+    
+    return all_data
+
+
+
 
 if __name__ == "__main__":
     main()
