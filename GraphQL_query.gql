@@ -1,0 +1,16 @@
+{
+  allRepos {
+    edges {
+      node {
+        name
+        commitDate
+        committer
+        adminAccess
+        creationDate
+        creator
+        archived
+        size
+      }
+    }
+  }
+}
