@@ -1,44 +1,61 @@
-$orgName = "SKY-UK"  
-$outputFile = "repos_last_commit_dates.csv"
+# Define the organization name
+$orgName = "SKY-UK"
 
-# Initialize the first API endpoint
-$endpoint = "https://api.github.com/orgs/$orgName/repos?per_page=100"
+# Define the base API URL
+$baseUrl = "https://api.github.com/orgs/$orgName"
 
-# Create a new CSV file and write the headers
-"Repository,Last Commit Date" | Out-File $outputFile
+# Define headers for the API request
+$headers = @{
+    "Accept" = "application/vnd.github.v3+json"
+    "Authorization" = "token " # Replace with your PAT
+    "X-Github-SSO" = "required"
+}
 
-do {
-    # Fetch a page of repositories
-    $response = gh api --paginate -X GET $endpoint | ConvertFrom-Json
-    foreach ($repo in $response) {
-        # Try fetching the last commit date from the main branch
-        $commitData = gh api repos/$orgName/$($repo.name)/commits/main 2>&1
+# Initialize an empty array to store the results
+$results = @()
 
-        # Check if the repository is empty or if the main branch doesn't exist
-        if ($commitData -like "*repository is empty (HTTP 409)*") {
-            "$($repo.name),Repository is empty" | Out-File $outputFile -Append
-            continue
-        } elseif ($commitData -like "*No Commit found for SHA: main (HTTP 422)*") {
-            # If main branch is not found or empty, try the master branch
-            $commitDate = (gh api repos/$orgName/$($repo.name)/commits/master 2>$null | ConvertFrom-Json).commit.author.date
-        } else {
-            $commitDate = ($commitData | ConvertFrom-Json).commit.author.date
-        }
+# Function to handle pagination and fetch all pages of results
+function GetAllPages($url) {
+    $allResults = @()
+    do {
+        $response = Invoke-RestMethod -Uri $url -Headers $headers
+        $allResults += $response
+        $url = ($response.Headers.Link -split ",") | Where-Object { $_ -like '*rel="next"*' } | ForEach-Object { ($_ -split ";")[0].Trim('<','>',' ') }
+    } while ($url)
+    return $allResults
+}
 
-        # If a commit date is found, write it to the CSV
-        if ($commitDate) {
-            "$($repo.name),$commitDate" | Out-File $outputFile -Append
-        } else {
-            "$($repo.name),No commits found" | Out-File $outputFile -Append
+# Fetch all repositories for the organization
+$repos = GetAllPages "$baseUrl/repos"
+
+# Loop through each repository
+foreach ($repo in $repos) {
+    # Fetch the last commit for the repository
+    $lastCommit = Invoke-RestMethod -Uri $repo.commits_url.Replace("{/sha}", "") -Headers $headers | Select-Object -First 1
+
+    # If there's a last commit, fetch the user who made the commit and the date
+    if ($lastCommit) {
+        $commitDate = $lastCommit.commit.author.date
+        $committer = $lastCommit.commit.author.name
+
+        # Fetch the teams associated with the repository
+        $teams = GetAllPages $repo.teams_url
+
+        # Extract team names
+        $teamNames = $teams | ForEach-Object { $_.name } -join ', '
+
+        # Add the repo name, commit date, committer, and team names to the results array
+        $results += [PSCustomObject]@{
+            "Repository"   = $repo.name
+            "LastCommitDate" = $commitDate
+            "Committer"    = $committer
+            "Teams"        = $teamNames
         }
     }
+}
 
-    # Check for the next page URL in the JSON output
-    $endpoint = $response.next_page_url
+# Display the results
+$results | Format-Table -AutoSize
 
-    # Sleep for a short duration to avoid hitting rate limits (optional but recommended)
-    Start-Sleep -Seconds 5
-
-} while ($endpoint -and $endpoint -ne "null")
-
-Write-Output "Results saved to $outputFile"
+# Export the results to a CSV file
+$results | Export-Csv -Path "repos_with_commits.csv" -NoTypeInformation
