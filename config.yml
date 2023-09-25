@@ -1,0 +1,3 @@
+//configuration file with the PAT token for repo scan (python script)
+//we would need to make sure adding this to .gitignore (to not commit it)
+GITHUB_API_TOKEN: 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
