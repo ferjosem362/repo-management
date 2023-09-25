@@ -1,9 +1,12 @@
 import github
 import csv
 import time
+import yaml
 
-# Set the GitHub Enterprise API token
-GITHUB_ENTERPRISE_API_TOKEN = "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"
+with open("config.yml", 'r') as stream:
+    config = yaml.safe_load(stream)
+
+GITHUB_API_ENTERPRISE_API_TOKEN = config['GITHUB_API_TOKEN']
 ORG_NAME = "SKY-UK"
 
 # Initialize the GitHub client
