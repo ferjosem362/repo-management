@@ -1,0 +1,52 @@
+name: Run Scripts  #this is a mop-up which allows GitHub Actions to deploy the queries to GH API
+
+on:
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  run-apps-script:
+    runs-on: ubuntu-latest # I've set up this, as general, but can be docker, windows, self-hosted
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+
+    - name: Run the APPs script
+      run: python apps_script_name.py
+      env:
+        ORG_NAME: ${{ secrets.ORG_NAME }}
+        TOKEN_ID: ${{ secrets.GITHUB_TOKEN_NAME }}
+
+  run-groups-script: #this is a python script to query current GH groups and users
+    needs: run-apps-script
+    runs-on: ubuntu-latest #as above, change by the appropriate setting, including Docker image
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+
+    - name: Run the Groups script
+      run: python groups_script_name.py #the name of the script, but you can put whichever
+      env:
+        ORG_NAME: ${{ secrets.ORG_NAME }}
+        TOKEN_ID: ${{ secrets.GITHUB_TOKEN_NAME }}
